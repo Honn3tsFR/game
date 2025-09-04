@@ -3,120 +3,104 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Mini FPS 3D Multi</title>
-<style>
-body{margin:0;overflow:hidden}
-canvas{display:block}
-#scoreboard{position:absolute;top:10px;left:10px;color:white;font-family:monospace}
-</style>
+<title>Super 2D Multi</title>
+<style>body{margin:0;overflow:hidden}canvas{background:#222;display:block}</style>
 </head>
 <body>
-<div id="scoreboard"></div>
-<script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js';
-import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/controls/PointerLockControls.js';
-
-let scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-let renderer = new THREE.WebGLRenderer({antialias:true}); 
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-
-let controls = new PointerLockControls(camera, document.body);
-document.body.addEventListener('click', ()=>controls.lock());
-
-const plane = new THREE.Mesh(new THREE.PlaneGeometry(50,50), new THREE.MeshPhongMaterial({color:0x228B22}));
-plane.rotation.x = -Math.PI/2;
-scene.add(plane);
-
-scene.add(new THREE.DirectionalLight(0xffffff,1).position.set(5,10,5));
-scene.add(new THREE.AmbientLight(0x404040));
-
-camera.position.set(0,1.7,5);
+<canvas id="game"></canvas>
+<div id="scoreboard" style="position:absolute;top:10px;left:10px;color:white;font-family:monospace;"></div>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = 600;
+canvas.height = 600;
 
 const scoreboard = document.getElementById('scoreboard');
 
-const players = {}, projectiles = [];
-let cubeMap = {}, sphereMap = [];
-const keys = {}, mouse = {down:false};
-let local = {x:0,y:0,z:0,rotY:0,hp:100,color:'#56CCF2',lastShoot:0};
-let myId=null;
-
-// WebSocket
 let ws=null;
+let myId=null;
+const players = {};
+const bullets = [];
+const keys = {};
+const mouse = {x:0,y:0,down:false};
+const local = {x:300,y:300,hp:100,color:'#56CCF2',lastShoot:0};
+
 function connect(){
-    ws=new WebSocket('wss://game-oywt.onrender.com'); // <--- Remplace par ton URL Render
-    ws.onopen = ()=>console.log('Connected');
-    ws.onmessage = e=>{
-        const msg = JSON.parse(e.data);
-        if(msg.t==='init'){ myId=msg.id; msg.players.forEach(p=>players[p.id]=p); projectiles.push(...msg.projectiles); }
-        else if(msg.t==='state'){ msg.players.forEach(p=>players[p.id]=p); projectiles.length=0; projectiles.push(...msg.projectiles); }
-    };
+  ws=new WebSocket('wss://game-oywt.onrender.com'); // <--- Remplace par ton URL Render
+  ws.onopen = ()=>console.log('Connected');
+  ws.onmessage = e=>{
+    const msg = JSON.parse(e.data);
+    if(msg.t==='init'){ myId=msg.id; msg.players.forEach(p=>players[p.id]=p); bullets.push(...msg.bullets); }
+    else if(msg.t==='state'){ msg.players.forEach(p=>players[p.id]=p); bullets.length=0; bullets.push(...msg.bullets); }
+  };
 }
 
 function shoot(){
-    if(Date.now()-local.lastShoot>300){
-        local.lastShoot=Date.now();
-        if(ws && ws.readyState===WebSocket.OPEN)
-            ws.send(JSON.stringify({t:'shoot', x:local.x, y:local.y, z:local.z, rotY:local.rotY, color:local.color}));
-    }
-}
-
-function updatePlayers(){
-    for(const id in players){
-        if(!cubeMap[id]){
-            let cube = new THREE.Mesh(new THREE.CapsuleGeometry(0.3,1), new THREE.MeshPhongMaterial({color:players[id].color}));
-            scene.add(cube); cubeMap[id]=cube;
-        }
-        const p = players[id];
-        cubeMap[id].position.set(p.x,p.y+0.5,p.z);
-    }
-}
-
-function updateProjectiles(){
-    while(sphereMap.length < projectiles.length){
-        let sph = new THREE.Mesh(new THREE.SphereGeometry(0.1,8,8), new THREE.MeshPhongMaterial({color:0xff0000}));
-        scene.add(sph); sphereMap.push(sph);
-    }
-    projectiles.forEach((proj,i)=>{
-        if(sphereMap[i]) sphereMap[i].position.set(proj.x,proj.y+1.5,proj.z);
-    });
-}
-
-function updateScoreboard(){
-    let arr = Object.values(players).sort((a,b)=>b.score-a.score);
-    scoreboard.innerHTML = arr.map(p=>p.id===myId?'YOU: '+p.score:'Player: '+p.score).join('<br>');
-}
-
-function gameStep(dt){
-    let dx=0,dz=0;
-    if(keys['w']) dz-=1; if(keys['s']) dz+=1;
-    if(keys['a']) dx-=1; if(keys['d']) dx+=1;
-    const len = Math.hypot(dx,dz); if(len>0){ dx/=len; dz/=len; }
-    local.x += dx*5*dt;
-    local.z += dz*5*dt;
-    local.rotY = controls.getObject().rotation.y;
-    if(mouse.down) shoot();
+  if(Date.now()-local.lastShoot>200){
+    local.lastShoot=Date.now();
+    const dx = mouse.x - local.x;
+    const dy = mouse.y - local.y;
+    const angle = Math.atan2(dy,dx);
     if(ws && ws.readyState===WebSocket.OPEN)
-        ws.send(JSON.stringify({t:'update', x:local.x, y:1.7, z:local.z, rotY:local.rotY, hp:local.hp}));
+      ws.send(JSON.stringify({t:'shoot', x:local.x, y:local.y, angle, color:local.color}));
+  }
 }
 
-window.addEventListener('keydown', e=>keys[e.key.toLowerCase()]=true);
-window.addEventListener('keyup', e=>keys[e.key.toLowerCase()]=false);
-window.addEventListener('mousedown', ()=>mouse.down=true);
-window.addEventListener('mouseup', ()=>mouse.down=false);
-
-function animate(){
-    requestAnimationFrame(animate);
-    gameStep(0.016);
-    updatePlayers();
-    updateProjectiles();
-    updateScoreboard();
-    renderer.render(scene,camera);
+function update(){
+  if(keys['w']) local.y -= 3;
+  if(keys['s']) local.y += 3;
+  if(keys['a']) local.x -= 3;
+  if(keys['d']) local.x += 3;
+  if(mouse.down) shoot();
+  if(ws && ws.readyState===WebSocket.OPEN)
+    ws.send(JSON.stringify({t:'update', x:local.x, y:local.y, hp:local.hp}));
 }
-animate();
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Draw bullets
+  bullets.forEach(b=>{
+    ctx.fillStyle=b.color;
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,5,0,2*Math.PI);
+    ctx.fill();
+  });
+
+  // Draw players
+  for(const id in players){
+    const p = players[id];
+    ctx.fillStyle=p.color;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,10,0,2*Math.PI);
+    ctx.fill();
+  }
+
+  // Draw local player on top
+  ctx.fillStyle=local.color;
+  ctx.beginPath();
+  ctx.arc(local.x,local.y,10,0,2*Math.PI);
+  ctx.fill();
+
+  // Scoreboard
+  const arr = Object.values(players).sort((a,b)=>b.score-a.score);
+  scoreboard.innerHTML = arr.map(p=>p.id===myId?'YOU: '+p.score:'Player: '+p.score).join('<br>');
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
+window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+canvas.addEventListener('mousemove',e=>{ mouse.x=e.offsetX; mouse.y=e.offsetY; });
+canvas.addEventListener('mousedown',()=>mouse.down=true);
+canvas.addEventListener('mouseup',()=>mouse.down=false);
+
 connect();
+loop();
 </script>
 </body>
 </html>
