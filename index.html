@@ -14,23 +14,19 @@ canvas{background:#071026;display:block;margin:0 auto;border-radius:8px}
 <script>
 const canvas=document.getElementById('game');
 const ctx=canvas.getContext('2d');
-
-let ws=null;
-let myId=null;
-const players={}; // key=id
-
-const local={x:100,y:100,angle:0,hp:100,color:'#56CCF2',lastAttack:0};
-const keys={}; let mouse={x:0,y:0,down:false};
+let ws=null, myId=null;
+const players={}, local={x:100,y:100,angle:0,hp:100,color:'#56CCF2',lastAttack:0};
+const keys={}, mouse={x:0,y:0,down:false};
 
 function connect(){
-  ws=new WebSocket('wss://TON_SERVEUR_WS'); // remplace par l'URL de ton serveur déployé
-  ws.onopen=()=>{ console.log('Connected'); }
+  ws=new WebSocket('wss://mini-combat-server.onrender.com'); // <--- Remplace par ton URL Render
+  ws.onopen=()=>console.log('Connected');
   ws.onmessage=e=>{
     const msg=JSON.parse(e.data);
     if(msg.t==='init'){ myId=msg.id; msg.players.forEach(p=>players[p.id]=p); }
     else if(msg.t==='players'){ msg.players.forEach(p=>players[p.id]=p); }
     else if(msg.t==='attack'){ handleAttack(msg); }
-  }
+  };
 }
 
 function handleAttack(msg){
@@ -43,13 +39,10 @@ function handleAttack(msg){
 
 function gameStep(dt){
   const speed=220;
-  let dx=0,dy=0;
-  if(keys['w']) dy-=1;
-  if(keys['s']) dy+=1;
-  if(keys['a']) dx-=1;
-  if(keys['d']) dx+=1;
-  const len=Math.hypot(dx,dy);
-  if(len>0){ dx/=len; dy/=len; }
+  let dx=0, dy=0;
+  if(keys['w']) dy-=1; if(keys['s']) dy+=1;
+  if(keys['a']) dx-=1; if(keys['d']) dx+=1;
+  const len=Math.hypot(dx,dy); if(len>0){ dx/=len; dy/=len; }
   local.x+=dx*speed*dt; local.y+=dy*speed*dt;
   local.x=Math.max(16, Math.min(canvas.width-16, local.x));
   local.y=Math.max(16, Math.min(canvas.height-16, local.y));
@@ -60,22 +53,20 @@ function gameStep(dt){
     if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify({t:'attack', x:local.x, y:local.y, angle:local.angle}));
   }
 
-  if(ws && ws.readyState===WebSocket.OPEN){
+  if(ws && ws.readyState===WebSocket.OPEN)
     ws.send(JSON.stringify({t:'update', x:local.x, y:local.y, angle:local.angle, hp:local.hp}));
-  }
 }
 
 function render(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle='#071026'; ctx.fillRect(0,0,canvas.width,canvas.height);
-
   for(const id in players){
     const p=players[id];
     ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.angle);
     ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(0,0,14,0,Math.PI*2); ctx.fill();
     ctx.fillStyle='#111'; ctx.fillRect(14,-4,18,8); ctx.restore();
     ctx.fillStyle='#222'; ctx.fillRect(p.x-22,p.y-30,44,6);
-    ctx.fillStyle=id===myId?'#2ecc71':''#e74c3c''; ctx.fillRect(p.x-22,p.y-30,44*(p.hp/100),6);
+    ctx.fillStyle=id===myId?'#2ecc71':'#e74c3c'; ctx.fillRect(p.x-22,p.y-30,44*(p.hp/100),6);
   }
 }
 
