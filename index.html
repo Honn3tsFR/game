@@ -19,7 +19,7 @@ const players={}, local={x:100,y:100,angle:0,hp:100,color:'#56CCF2',lastAttack:0
 const keys={}, mouse={x:0,y:0,down:false};
 
 function connect(){
-  ws=new WebSocket('wss://mini-combat-server.onrender.com'); // <--- Remplace par ton URL Render
+  ws=new WebSocket('https://game-oywt.onrender.com'); // <--- Remplace par ton URL Render
   ws.onopen=()=>console.log('Connected');
   ws.onmessage=e=>{
     const msg=JSON.parse(e.data);
