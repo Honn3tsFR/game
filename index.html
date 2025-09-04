@@ -37,7 +37,7 @@ camera.position.set(0,1.7,5);
 
 let ws=null;
 function connect(){
-  ws=new WebSocket('wss://mini-combat-server.onrender.com'); // <--- Remplace par ton URL Render
+  ws=new WebSocket('wss://game-oywt.onrender.com'); // <--- Remplace par ton URL Render
   ws.onopen=()=>console.log('Connected');
   ws.onmessage=e=>{
     const msg=JSON.parse(e.data);
