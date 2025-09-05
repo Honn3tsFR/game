@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Super Battle 2D</title>
+<title>Super 2D Top-Down Multiplayer</title>
 <style>
 body{margin:0;overflow:hidden}canvas{background:#111;display:block}
 #scoreboard{position:absolute;top:10px;left:10px;color:white;font-family:monospace}
@@ -19,47 +19,52 @@ canvas.width=600; canvas.height=600;
 const scoreboard=document.getElementById('scoreboard');
 
 let ws=null, myId=null;
-const players={}, bullets=[];
+const players={}, bullets=[], obstacles=[];
 const keys={}, mouse={x:0,y:0,down:false};
 const local={x:300,y:300,hp:100,color:'#56CCF2',lastShoot:0};
-
-const obstacles=[{x:150,y:150,w:100,h:20},{x:400,y:300,w:20,h:100},{x:200,y:450,w:150,h:20}];
+const MAP_SIZE=600;
 
 function connect(){
   ws=new WebSocket('wss://your-server-url'); // <-- Render server URL
   ws.onopen=()=>console.log('Connected');
   ws.onmessage=e=>{
     const msg=JSON.parse(e.data);
-    if(msg.t==='init'){ myId=msg.id; msg.players.forEach(p=>players[p.id]=p); bullets.push(...msg.bullets);}
-    else if(msg.t==='state'){ msg.players.forEach(p=>players[p.id]=p); bullets.length=0; bullets.push(...msg.bullets);}
+    if(msg.t==='init'){ 
+      myId=msg.id; 
+      msg.players.forEach(p=>players[p.id]=p); 
+      bullets.push(...msg.bullets); 
+      obstacles.push(...msg.obstacles);
+    } else if(msg.t==='state'){ 
+      msg.players.forEach(p=>players[p.id]=p); 
+      bullets.length=0; bullets.push(...msg.bullets);
+    }
   };
 }
 
 function shoot(){
   if(Date.now()-local.lastShoot>150){
     local.lastShoot=Date.now();
-    const dx=mouse.x-local.x;
-    const dy=mouse.y-local.y;
+    const dx=mouse.x;
+    const dy=mouse.y;
     const angle=Math.atan2(dy,dx);
     if(ws && ws.readyState===WebSocket.OPEN)
       ws.send(JSON.stringify({t:'shoot',x:local.x,y:local.y,angle,color:local.color}));
   }
 }
 
-function dash(){
-  const dx=mouse.x-local.x;
-  const dy=mouse.y-local.y;
-  const angle=Math.atan2(dy,dx);
-  if(ws && ws.readyState===WebSocket.OPEN)
-    ws.send(JSON.stringify({t:'dash',angle}));
-}
-
 function update(){
   let dx=0,dy=0;
-  if(keys['w']) dy-=3; if(keys['s']) dy+=3;
-  if(keys['a']) dx-=3; if(keys['d']) dx+=3;
-  local.x+=dx; local.y+=dy;
+  if(keys['w']) dy-=3;
+  if(keys['s']) dy+=3;
+  if(keys['a']) dx-=3;
+  if(keys['d']) dx+=3;
+
+  // Collision map bounds
+  local.x=Math.max(0,Math.min(MAP_SIZE,local.x+dx));
+  local.y=Math.max(0,Math.min(MAP_SIZE,local.y+dy));
+
   if(mouse.down) shoot();
+
   if(ws && ws.readyState===WebSocket.OPEN)
     ws.send(JSON.stringify({t:'update',x:local.x,y:local.y,hp:local.hp}));
 }
@@ -67,15 +72,19 @@ function update(){
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
+  // Camera offset
+  const offsetX = local.x - canvas.width/2;
+  const offsetY = local.y - canvas.height/2;
+
   // obstacles
   ctx.fillStyle='#555';
-  obstacles.forEach(o=>ctx.fillRect(o.x,o.y,o.w,o.h));
+  obstacles.forEach(o=>ctx.fillRect(o.x-offsetX,o.y-offsetY,o.w,o.h));
 
   // bullets
   bullets.forEach(b=>{
     ctx.fillStyle=b.color;
     ctx.beginPath();
-    ctx.arc(b.x,b.y,5,0,2*Math.PI);
+    ctx.arc(b.x-offsetX,b.y-offsetY,5,0,2*Math.PI);
     ctx.fill();
   });
 
@@ -84,20 +93,20 @@ function draw(){
     const p=players[id];
     ctx.fillStyle=p.color;
     ctx.beginPath();
-    ctx.arc(p.x,p.y,10,0,2*Math.PI);
+    ctx.arc(p.x-offsetX,p.y-offsetY,10,0,2*Math.PI);
     ctx.fill();
     // HP bar
     ctx.fillStyle='red';
-    ctx.fillRect(p.x-10,p.y-18,20*(p.hp/100),3);
+    ctx.fillRect(p.x-10-offsetX,p.y-18-offsetY,20*(p.hp/100),3);
   }
 
   // local player on top
   ctx.fillStyle=local.color;
   ctx.beginPath();
-  ctx.arc(local.x,local.y,10,0,2*Math.PI);
+  ctx.arc(canvas.width/2,canvas.height/2,10,0,2*Math.PI);
   ctx.fill();
   ctx.fillStyle='red';
-  ctx.fillRect(local.x-10,local.y-18,20*(local.hp/100),3);
+  ctx.fillRect(canvas.width/2-10,canvas.height/2-18,20*(local.hp/100),3);
 
   // scoreboard
   const arr=Object.values(players).sort((a,b)=>b.score-a.score);
@@ -108,8 +117,7 @@ function loop(){ update(); draw(); requestAnimationFrame(loop); }
 
 window.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
 window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-window.addEventListener('keydown',e=>{ if(e.key==='Shift') dash(); });
-canvas.addEventListener('mousemove',e=>{ mouse.x=e.offsetX; mouse.y=e.offsetY; });
+canvas.addEventListener('mousemove',e=>{ mouse.x=e.offsetX-canvas.width/2; mouse.y=e.offsetY-canvas.height/2; });
 canvas.addEventListener('mousedown',()=>mouse.down=true);
 canvas.addEventListener('mouseup',()=>mouse.down=false);
 
