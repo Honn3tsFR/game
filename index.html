@@ -25,7 +25,7 @@ const local={x:300,y:300,hp:100,color:'#56CCF2',lastShoot:0};
 const MAP_SIZE=600;
 
 function connect(){
-  ws=new WebSocket('wss://your-server-url'); // <-- Render server URL
+  ws=new WebSocket('wss://game-oywt.onrender.com'); // <-- Render server URL
   ws.onopen=()=>console.log('Connected');
   ws.onmessage=e=>{
     const msg=JSON.parse(e.data);
